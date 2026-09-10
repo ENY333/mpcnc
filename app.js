@@ -131,8 +131,12 @@ function parseProgram(){
 }
 function getBounds(segs){
   if(!segs.length)return null;
-  const a=[];
-  segs.forEach(s=>a.push([s.x,s.y],[s.x2,s.y2]));
+
+  const a=[[0,0]]; // LUÔN bao gồm gốc tọa độ X0 Y0 / X0 Z0
+  segs.forEach(s=>{
+    a.push([s.x,s.y],[s.x2,s.y2]);
+  });
+
   return {
     minX:Math.min(...a.map(p=>p[0])),
     maxX:Math.max(...a.map(p=>p[0])),
@@ -147,21 +151,22 @@ function updateMachine(){
 }
 function worldToScreen(x,y){
   const w=canvas.clientWidth,h=canvas.clientHeight,b=state.bounds;
-  if(!b)return [30,30];
+  if(!b)return [35,h-35];
 
   const pad=42;
   const spanX=Math.max(1,b.maxX-b.minX);
   const spanY=Math.max(1,b.maxY-b.minY);
+
+  // Auto-fit includes X0/Y0, so positive-coordinate programs naturally
+  // appear to the upper-right of the origin.
   const scale=Math.min(
     (w-pad*2)/spanX,
     (h-pad*2)/spanY
   )*state.zoom;
 
-  // Drawing frame is automatically fitted.
-  // Its minimum X/Z-Y coordinate starts near the upper-left.
   return [
     pad+(x-b.minX)*scale+state.panX,
-    pad+(y-b.minY)*scale+state.panY
+    h-pad-(y-b.minY)*scale+state.panY
   ];
 }
 function draw(){
@@ -186,38 +191,58 @@ function drawGrid(w,h){
 }
 function drawAxes(w,h){
   if(!state.bounds)return;
+
   const p=worldToScreen(0,0);
 
   ctx.lineWidth=1;
   ctx.strokeStyle="#314454";
   ctx.setLineDash([]);
 
-  // X axis
+  // X axis through Y/Z = 0
   if(p[1]>=0&&p[1]<=h){
-    ctx.beginPath();ctx.moveTo(0,p[1]);ctx.lineTo(w,p[1]);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0,p[1]);
+    ctx.lineTo(w,p[1]);
+    ctx.stroke();
   }
-  // Display vertical axis:
-  // milling: Y, turning: Z
+
+  // Y axis (milling) / Z axis (turning) through X = 0
   if(p[0]>=0&&p[0]<=w){
-    ctx.beginPath();ctx.moveTo(p[0],0);ctx.lineTo(p[0],h);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p[0],0);
+    ctx.lineTo(p[0],h);
+    ctx.stroke();
+  }
+
+  // Origin marker — this is the actual CNC X0 Y0 (or X0 Z0).
+  if(p[0]>=0&&p[0]<=w&&p[1]>=0&&p[1]<=h){
+    ctx.fillStyle="#ffffff";
+    ctx.beginPath();
+    ctx.arc(p[0],p[1],3,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle="#38a9ff";
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(p[0]-7,p[1]);ctx.lineTo(p[0]+7,p[1]);
+    ctx.moveTo(p[0],p[1]-7);ctx.lineTo(p[0],p[1]+7);
+    ctx.stroke();
+
+    ctx.fillStyle="#8da0b4";
+    ctx.font="9px Consolas";
+    ctx.fillText("X0 Y0",p[0]+7,p[1]-7);
   }
 
   ctx.fillStyle="#627487";
   ctx.font="9px Consolas";
-  ctx.fillText(state.mode==="turning"?"Z":"Y",w-14,Math.max(11,Math.min(h-4,p[1]-5)));
-  ctx.fillText("X",Math.min(w-12,Math.max(3,p[0]+5)),11);
-
-  // Exact origin marker
-  if(p[0]>=0&&p[0]<=w&&p[1]>=0&&p[1]<=h){
-    ctx.fillStyle="#dbeafe";
-    ctx.beginPath();ctx.arc(p[0],p[1],2.5,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle="#8290a1";ctx.fillText("0",p[0]+5,p[1]-5);
-  }
+  ctx.fillText("X",w-14,Math.max(11,Math.min(h-4,p[1]-5)));
+  ctx.fillText(state.mode==="turning"?"Z":"Y",
+    Math.min(w-12,Math.max(3,p[0]+5)),11);
 }
 function setMode(mode){
  state.mode=mode; $("#millingBtn").classList.toggle("active",mode==="milling");$("#turningBtn").classList.toggle("active",mode==="turning");
  $("#turningCard").style.display=mode==="turning"?"block":""; $("#viewTitle").textContent=mode==="turning"?"2D • LATHE VIEW (X-Z)":"2D • TOP VIEW (X-Y)";
- $("#viewSub").textContent=mode==="turning"?"Biên dạng tiện theo X/Z":"Toolpath theo G-code";
+ $("#viewSub").textContent=mode==="turning"?"Biên dạng tiện X/Z • gốc X0 Z0":"Toolpath X/Y • gốc X0 Y0";
  $("#modeBadge").textContent=mode==="turning"?"TIỆN • G18 • G90":"PHAY • G17 • G90";
  parseProgram();
 }
