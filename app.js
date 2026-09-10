@@ -122,7 +122,12 @@ function run(){
  parseProgram(); if(!state.segments.length)return; state.running=true;state.paused=false;state.step=0;$("#metricState").textContent="Đang chạy";$("#statusText").textContent="Đang mô phỏng G-code";
  clearInterval(state.timer); state.timer=setInterval(()=>{if(state.paused)return;state.step++;if(state.step>state.segments.length){clearInterval(state.timer);state.running=false;$("#metricState").textContent="Hoàn tất";$("#statusText").textContent="Mô phỏng hoàn tất"}draw()},70);
 }
-$("#code").addEventListener("input",()=>{updateLines();$("#dirty").textContent="● Chưa lưu";$("#dirty").style.color="var(--yellow)"});
+$("#code").addEventListener("input",()=>{
+  updateLines();
+  $("#dirty").textContent="● Chưa lưu";
+  $("#dirty").style.color="var(--yellow)";
+  parseProgram(); // ĐỒNG BỘ 2D TỨC THÌ — không delay
+});
 $("#code").addEventListener("scroll",()=>$("#lineNumbers").scrollTop=code.scrollTop);
 $("#code").addEventListener("keyup",()=>{const n=code.value.slice(0,code.selectionStart).split("\n").length;$("#cursorInfo").textContent=`Dòng ${n} / ${lines().length}`});
 $("#runBtn").onclick=run;$("#pauseBtn").onclick=()=>{state.paused=!state.paused;$("#metricState").textContent=state.paused?"Tạm dừng":"Đang chạy"};
