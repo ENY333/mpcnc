@@ -42,3 +42,7 @@ Nếu trình duyệt chặn một số tính năng file, có thể dùng VS Code
 ## Lưu ý
 
 Đây là simulator/visualizer phía client, không kết nối trực tiếp tới máy CNC. Trước khi đưa G-code vào máy thật cần kiểm tra lại controller, hệ tọa độ, dao, tốc độ và độ sâu cắt.
+
+
+## Đồng bộ G-code ↔ 2D
+Màn hình bắt đầu trống, không có chương trình mẫu. Khi người dùng nhập hoặc xóa G-code, toolpath 2D được phân tích và vẽ lại ngay trong sự kiện `input`. Xóa lệnh chuyển động sẽ xóa đường chạy tương ứng.

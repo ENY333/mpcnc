@@ -24,6 +24,12 @@ function parseNum(s,k,old){
   return m ? parseFloat(m[1]) : old;
 }
 function parseProgram(){
+  // LIVE SYNC: mỗi lần code thay đổi, xóa toàn bộ kết quả cũ trước.
+  // Vì vậy xóa một lệnh G-code thì đường chạy tương ứng biến mất ngay.
+  state.segments = [];
+  state.bounds = null;
+  state.step = 0;
+
   let x=0,y=0,z=5,f=0,s=0,t=1, mode="G90", motion="G00", total=0;
   const segs=[], warnings=[];
   for(let i=0;i<lines().length;i++){
@@ -123,10 +129,16 @@ function run(){
  clearInterval(state.timer); state.timer=setInterval(()=>{if(state.paused)return;state.step++;if(state.step>state.segments.length){clearInterval(state.timer);state.running=false;$("#metricState").textContent="Hoàn tất";$("#statusText").textContent="Mô phỏng hoàn tất"}draw()},70);
 }
 $("#code").addEventListener("input",()=>{
+  // Cập nhật editor ngay
   updateLines();
+
+  // Trạng thái lưu
   $("#dirty").textContent="● Chưa lưu";
   $("#dirty").style.color="var(--yellow)";
-  parseProgram(); // ĐỒNG BỘ 2D TỨC THÌ — không delay
+
+  // Xóa kết quả cũ + phân tích code hiện tại + vẽ lại NGAY
+  parseProgram();
+  draw();
 });
 $("#code").addEventListener("scroll",()=>$("#lineNumbers").scrollTop=code.scrollTop);
 $("#code").addEventListener("keyup",()=>{const n=code.value.slice(0,code.selectionStart).split("\n").length;$("#cursorInfo").textContent=`Dòng ${n} / ${lines().length}`});
@@ -151,5 +163,5 @@ window.addEventListener("pointerup",()=>{drag=false;canvas.classList.remove("pan
 window.addEventListener("pointermove",e=>{if(!drag)return;state.panX+=e.clientX-lx;state.panY+=e.clientY-ly;lx=e.clientX;ly=e.clientY;draw()});
 window.addEventListener("keydown",e=>{if(e.ctrlKey&&e.key.toLowerCase()==="s"){e.preventDefault();download("program.nc",code.value)}if(e.ctrlKey&&e.key==="Enter"){e.preventDefault();run()}if(e.ctrlKey&&e.key.toLowerCase()==="n"){e.preventDefault();$("#newBtn").click()}});
 new ResizeObserver(resizeCanvas).observe($(".canvas-wrap"));
-updateLines();setMode("milling");resizeCanvas();
+updateLines();reset();setMode("milling");resizeCanvas();
 })();
