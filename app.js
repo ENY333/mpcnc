@@ -85,74 +85,164 @@ function draftDim(x1,y1,x2,y2,label,offset=18,vertical=false){
 }
 function drawDimensions(w,h){
   const r=state.result,b=r?.bounds;if(!r||!b)return;
-  const spanX=b.maxX-b.minX,spanY=b.maxY-b.minY;if(spanX<=0&&spanY<=0)return;
-  ctx.save();ctx.setLineDash([]);ctx.font='10px Consolas, monospace';
-  const origin=world(0,0);
-  // Axes get clean coordinate ticks only; feature dimensions live outside the contour.
-  const xVals=collectAxisTicks('x'),yVals=collectAxisTicks('y');
-  const ox=Math.max(10,Math.min(w-10,origin[0])),oy=Math.max(10,Math.min(h-10,origin[1]));
-  ctx.strokeStyle='#536577';ctx.fillStyle='#899bad';
-  for(const v of xVals){const q=world(v,0)[0];if(q<12||q>w-12)continue;ctx.beginPath();ctx.moveTo(q,oy-3);ctx.lineTo(q,oy+3);ctx.stroke();ctx.textAlign='center';ctx.fillText(trimNum(v),q,Math.min(h-3,oy+14));}
-  for(const v of yVals){const q=world(0,v)[1];if(q<12||q>h-12)continue;ctx.beginPath();ctx.moveTo(ox-3,q);ctx.lineTo(ox+3,q);ctx.stroke();ctx.textAlign='left';ctx.fillText(trimNum(v),Math.min(w-28,ox+7),q-4);}
+  const minX=b.minX,maxX=b.maxX,minY=b.minY,maxY=b.maxY;
+  const spanX=maxX-minX,spanY=maxY-minY;
+  if(spanX<=1e-9&&spanY<=1e-9)return;
 
-  // Engineering drawing style: dimensions are arranged in separate lanes,
-  // never stacked on the contour itself.
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineWidth=1;
+  ctx.font='10px Consolas, monospace';
+  ctx.textBaseline='middle';
+
+  const box={
+    left:world(minX,minY)[0], right:world(maxX,minY)[0],
+    top:world(minX,maxY)[1], bottom:world(minX,minY)[1]
+  };
+  const outsidePad=Math.max(12,Math.min(26,Math.min(w,h)*.035));
+  const laneGap=Math.max(18,Math.min(30,Math.min(w,h)*.045));
   const occupied=[];
-  const place=(box)=>{if(!box)return false;if(box.x<2||box.y<2||box.x+box.w>w-2||box.y+box.h>h-2)return false;if(occupied.some(o=>rectOverlap(o,box)))return false;occupied.push(box);return true};
-  const topBase=world(b.minX,b.maxY)[1];
-  const leftBase=world(b.minX,b.minY)[0];
+  const addBox=(box2)=>{if(!box2)return false;if(box2.x<3||box2.y<3||box2.x+box2.w>w-3||box2.y+box2.h>h-3)return false;if(occupied.some(o=>rectOverlap(o,box2,3)))return false;occupied.push(box2);return true;};
+  const outsideOnly=(box2,side)=>{
+    if(!box2)return false;
+    if(side==='top' && box2.y+box2.h>box.top-4)return false;
+    if(side==='bottom' && box2.y<box.bottom+4)return false;
+    if(side==='left' && box2.x+box2.w>box.left-4)return false;
+    if(side==='right' && box2.x<box.right+4)return false;
+    return addBox(box2);
+  };
 
-  if(spanX>1e-7){
-    const p1=world(b.minX,b.maxY),p2=world(b.maxX,b.maxY);
-    for(const off of [-26,-40,-54,-68]){
-      const box=draftDim(p1[0],p1[1],p2[0],p2[1],`X ${trimNum(spanX)}`,off,false);if(place(box))break;
+  function dimHorizontal(x1,x2,y,label,extY1,extY2,side){
+    if(Math.abs(x2-x1)<12)return false;
+    ctx.save();
+    ctx.strokeStyle='rgba(221,229,237,.78)';ctx.fillStyle='#dce5ed';ctx.lineWidth=1;ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x1,extY1);ctx.lineTo(x1,y);
+    ctx.moveTo(x2,extY2);ctx.lineTo(x2,y);
+    ctx.moveTo(x1,y);ctx.lineTo(x2,y);ctx.stroke();
+    drawArrowHead(x1,y,0,4.5);drawArrowHead(x2,y,Math.PI,4.5);
+    const box2=measureTextBox(label,(x1+x2)/2,y,0);
+    const ok=outsideOnly(box2,side);
+    if(ok)drawDimText(label,(x1+x2)/2,y,0);
+    ctx.restore();
+    return ok;
+  }
+  function dimVertical(y1,y2,x,label,extX1,extX2,side){
+    if(Math.abs(y2-y1)<12)return false;
+    ctx.save();
+    ctx.strokeStyle='rgba(221,229,237,.78)';ctx.fillStyle='#dce5ed';ctx.lineWidth=1;ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(extX1,y1);ctx.lineTo(x,y1);
+    ctx.moveTo(extX2,y2);ctx.lineTo(x,y2);
+    ctx.moveTo(x,y1);ctx.lineTo(x,y2);ctx.stroke();
+    drawArrowHead(x,y1,Math.PI/2,4.5);drawArrowHead(x,y2,-Math.PI/2,4.5);
+    const box2=measureTextBox(label,x,(y1+y2)/2,-Math.PI/2);
+    const ok=outsideOnly(box2,side);
+    if(ok)drawDimText(label,x,(y1+y2)/2,-Math.PI/2);
+    ctx.restore();
+    return ok;
+  }
+
+  // Coordinate ticks stay on the axes. Drawing dimensions never uses the contour itself.
+  const origin=world(0,0),ox=Math.max(0,Math.min(w,origin[0])),oy=Math.max(0,Math.min(h,origin[1]));
+  ctx.strokeStyle='#536577';ctx.fillStyle='#899bad';ctx.font='9px Consolas, monospace';
+  for(const v of collectAxisTicks('x')){
+    const q=world(v,0)[0];if(q<8||q>w-8)continue;
+    if(oy>=0&&oy<=h){ctx.beginPath();ctx.moveTo(q,oy-3);ctx.lineTo(q,oy+3);ctx.stroke();ctx.textAlign='center';ctx.fillText(trimNum(v),q,Math.min(h-4,oy+13));}
+  }
+  for(const v of collectAxisTicks('y')){
+    const q=world(0,v)[1];if(q<8||q>h-8)continue;
+    if(ox>=0&&ox<=w){ctx.beginPath();ctx.moveTo(ox-3,q);ctx.lineTo(ox+3,q);ctx.stroke();ctx.textAlign='left';ctx.fillText(trimNum(v),Math.min(w-30,ox+7),Math.max(9,q-4));}
+  }
+
+  // Overall dimensions: always outside the part.
+  if(spanX>1e-9){
+    const x1=world(minX,maxY)[0],x2=world(maxX,maxY)[0];
+    const base=box.top-outsidePad;
+    let placed=false;
+    for(let lane=0;lane<5&&!placed;lane++){
+      const y=base-lane*laneGap;
+      placed=dimHorizontal(x1,x2,y,`X ${trimNum(spanX)}`,box.top,box.top,'top');
     }
   }
-  if(spanY>1e-7){
-    const p1=world(b.minX,b.minY),p2=world(b.minX,b.maxY);
-    for(const off of [-28,-44,-60,-76]){
-      const box=draftDim(p1[0],p1[1],p2[0],p2[1],`Y ${trimNum(spanY)}`,off,true);if(place(box))break;
+  if(spanY>1e-9){
+    const y1=world(minX,minY)[1],y2=world(minX,maxY)[1];
+    const base=box.left-outsidePad;
+    let placed=false;
+    for(let lane=0;lane<5&&!placed;lane++){
+      const x=base-lane*laneGap;
+      placed=dimVertical(y2,y1,x,`Y ${trimNum(spanY)}`,box.left,box.left,'left');
     }
   }
 
-  const segments=r.segments||[];let count=0;
-  // Track dimension lanes separately. This is much closer to conventional drafting:
-  // horizontal dimensions use horizontal lanes, vertical dimensions use vertical lanes.
-  let hLane=0,vLane=0,arcLane=0;
+  // Per-command dimensions. Horizontal/vertical moves are dimensioned outside
+  // the contour. Diagonal moves are intentionally NOT dimensioned by diagonal
+  // length: their X and Y projections are used, matching drafting practice.
+  const seenH=new Set(),seenV=new Set(),seenArc=new Set();
+  let hLane=1,vLane=1,arcLane=0;
+  const segments=r.segments||[];
   for(const s of segments){
-    if(count>=80||s.rapid||s.g==='G00')continue;
-    const dx=Number(s.x2)-Number(s.x),dy=Number(s.y2)-Number(s.y);
-    const px=Math.abs(dx),py=Math.abs(dy);if(!Number.isFinite(px)||!Number.isFinite(py)||(px<1e-7&&py<1e-7))continue;
-    const a=world(s.x,s.y),bb=world(s.x2,s.y2);
+    if(s.rapid||s.g==='G00')continue;
+    const x1=Number(s.x),y1=Number(s.y),x2=Number(s.x2),y2=Number(s.y2);
+    if(![x1,y1,x2,y2].every(Number.isFinite))continue;
+    const dx=x2-x1,dy=y2-y1,px=Math.abs(dx),py=Math.abs(dy);
+
     if(s.meta?.arc){
-      const m=s.meta,rr=Number(m.arcRadius);if(!Number.isFinite(rr)||rr<=0)continue;
+      const m=s.meta,rr=Number(m.arcRadius);
+      if(!Number.isFinite(rr)||rr<=1e-9)continue;
+      const key=`${s.line}|${rr.toFixed(6)}`;if(seenArc.has(key))continue;seenArc.add(key);
       const c=m.arcCenter,sp=m.arcStartPoint,sw=Number(m.arcSweep)||0;
       const st=Number(m.arcStart)||Math.atan2(sp.y-c.y,sp.x-c.x),mid=st+sw/2;
-      const q=world(c.x+Math.cos(mid)*rr,c.y+Math.sin(mid)*rr);
-      const cp=world(c.x,c.y),ang=Math.atan2(q[1]-cp[1],q[0]-cp[0]);
-      const ex=q[0]+Math.cos(ang)*(20+arcLane*16),ey=q[1]+Math.sin(ang)*(20+arcLane*16);
-      ctx.strokeStyle='rgba(213,222,231,.72)';ctx.fillStyle='#dbe4ec';ctx.beginPath();ctx.moveTo(q[0],q[1]);ctx.lineTo(ex,ey);ctx.stroke();drawArrowHead(q[0],q[1],ang+Math.PI,4.5);
-      const box=drawDimText(`R ${trimNum(rr)}`,ex,ey,0);if(place(box))arcLane++;continue;
+      const pxw=c.x+Math.cos(mid)*rr,pyw=c.y+Math.sin(mid)*rr;
+      const q=world(pxw,pyw),cp=world(c.x,c.y);
+      const vx=q[0]-cp[0],vy=q[1]-cp[1],vl=Math.hypot(vx,vy)||1;
+      const nx=vx/vl,ny=vy/vl;
+      // Put radius text outside the part, using a leader from the arc.
+      let distance=24+arcLane*18;
+      let tx=q[0]+nx*distance,ty=q[1]+ny*distance;
+      if(tx<box.left-8)tx=box.left-12;
+      if(tx>box.right+8)tx=box.right+12;
+      if(ty<box.top-8)ty=box.top-12;
+      if(ty>box.bottom+8)ty=box.bottom+12;
+      const label=`R ${trimNum(rr)}`;
+      const tb=measureTextBox(label,tx,ty,0);
+      if(outsideOnly(tb,tx<box.left?'left':tx>box.right?'right':ty<box.top?'top':'bottom')){
+        ctx.strokeStyle='rgba(221,229,237,.78)';ctx.fillStyle='#dce5ed';ctx.beginPath();ctx.moveTo(q[0],q[1]);ctx.lineTo(tx,ty);ctx.stroke();drawArrowHead(q[0],q[1],Math.atan2(q[1]-ty,q[0]-tx),4.5);drawDimText(label,tx,ty,0);arcLane++;
+      }
+      continue;
     }
-    let placed=false;
+
+    if(px<1e-7&&py<1e-7)continue;
     if(py<1e-7&&px>=2){
-      const off=(dx>=0?-1:1)*(18+(hLane%4)*16);
-      const box=draftDim(a[0],a[1],bb[0],bb[1],`X ${trimNum(px)}`,off,false);if(place(box)){placed=true;hLane++;}
+      const key=`${Math.min(x1,x2).toFixed(6)}|${Math.max(x1,x2).toFixed(6)}`;if(seenH.has(key))continue;seenH.add(key);
+      const a=world(x1,y1),bb=world(x2,y2);
+      const y=box.top-outsidePad-hLane*laneGap;
+      if(dimHorizontal(a[0],bb[0],y,`X ${trimNum(px)}`,a[1],bb[1],'top'))hLane++;
     }else if(px<1e-7&&py>=2){
-      const off=(dx>=0?1:-1)*(18+(vLane%4)*16);
-      const box=draftDim(a[0],a[1],bb[0],bb[1],`Y ${trimNum(py)}`,off,true);if(place(box)){placed=true;vLane++;}
+      const key=`${Math.min(y1,y2).toFixed(6)}|${Math.max(y1,y2).toFixed(6)}`;if(seenV.has(key))continue;seenV.add(key);
+      const a=world(x1,y1),bb=world(x2,y2);
+      const x=box.left-outsidePad-vLane*laneGap;
+      if(dimVertical(a[1],bb[1],x,`Y ${trimNum(py)}`,a[0],bb[0],'left'))vLane++;
     }else{
-      // Diagonal = two orthogonal projections, not a diagonal length.
+      // X projection for diagonal.
       if(px>=2){
-        const yy=Math.max(a[1],bb[1])+14+(hLane%4)*16;
-        const box=draftDim(a[0],yy,bb[0],yy,`X ${trimNum(px)}`,0,false);if(place(box)){placed=true;hLane++;}
+        const key=`dx|${Math.min(x1,x2).toFixed(6)}|${Math.max(x1,x2).toFixed(6)}`;
+        if(!seenH.has(key)){
+          seenH.add(key);
+          const a=world(x1,y1),bb=world(x2,y2),y=box.bottom+outsidePad+hLane*laneGap;
+          if(dimHorizontal(a[0],bb[0],y,`X ${trimNum(px)}`,a[1],bb[1],'bottom'))hLane++;
+        }
       }
+      // Y projection for diagonal.
       if(py>=2){
-        const xx=Math.max(a[0],bb[0])+14+(vLane%4)*16;
-        const box=draftDim(xx,a[1],xx,bb[1],`Y ${trimNum(py)}`,0,true);if(place(box)){placed=true;vLane++;}
+        const key=`dy|${Math.min(y1,y2).toFixed(6)}|${Math.max(y1,y2).toFixed(6)}`;
+        if(!seenV.has(key)){
+          seenV.add(key);
+          const a=world(x1,y1),bb=world(x2,y2),x=box.right+outsidePad+vLane*laneGap;
+          if(dimVertical(a[1],bb[1],x,`Y ${trimNum(py)}`,a[0],bb[0],'right'))vLane++;
+        }
       }
     }
-    if(placed)count++;
   }
   ctx.restore();
 }
