@@ -1,48 +1,41 @@
-# CNC Studio Web
+# CNC Studio Web v3 — 100K
 
-CNC Studio Web là giao diện CNC chạy **100% trên trình duyệt**, không cần Electron, Node.js hay backend.
+Web CNC simulator/preview chạy thuần HTML/CSS/JavaScript, phù hợp GitHub Pages.
 
-## Chạy local
+## Có gì trong bản này
 
-Mở `index.html` bằng trình duyệt.
+- Live G-code -> 2D ngay khi gõ/xóa.
+- PHAY: G00/G01/G02/G03, I/J/K, R/CR, G17/G18/G19, G90/G91, G90.1/G91.1.
+- Canned cycle phay: G73/G74/G76/G81-G89 và modal repeat của cycle.
+- TIỆN X/Z: G70-G76, G90/G92/G94 theo profile Haas/FANUC ở mức preview hình học.
+- LinuxCNC: G90/G91 distance mode và nhóm modal chính.
+- G20/G21, G93/G94/G95, G96/G97, G98/G99, G40-G43/G49.
+- G54-G59, G10 L2/L20, G52, G92/G92.1.
+- G68/G69 rotation, G51 scale, G100/G101 mirror preview.
+- M03/M04/M05, M06, M07/M08/M09, M98/M99 diagnostics.
+- Macro variable cơ bản dạng `#100=...`, `#<NAME>=...` và tham chiếu số đơn giản.
+- Chẩn đoán G/M code chưa hỗ trợ, click cảnh báo để nhảy tới dòng.
+- Auto-fit có gốc tọa độ; zoom/pan; mô phỏng Run/Pause/Stop/Step.
+- Controller selector: FANUC / HAAS / LinuxCNC.
+- `CR-20` được chuẩn hóa thành `R-20`.
 
-Nếu trình duyệt chặn một số tính năng file, có thể dùng VS Code + Live Server.
+## Kiểm thử
 
-## Đưa lên GitHub Pages
+- Tổng source: **100,000+ dòng**.
+- Generated validation corpus: **99,723 case**.
+- Smoke tests cho: chương trình phay mẫu, G81 modal, tiện G76, G90/G91 LinuxCNC.
+- Generated corpus: **99,723 pass / 0 fail**.
 
-1. Tạo repository mới trên GitHub.
-2. Upload toàn bộ:
-   - `index.html`
-   - `styles.css`
-   - `app.js`
-3. Vào **Settings → Pages**.
-4. Chọn **Deploy from a branch**.
-5. Chọn branch `main`, thư mục `/root`.
-6. Save và chờ GitHub Pages deploy.
+## Lưu ý quan trọng
 
-## Tính năng hiện tại
+G-code phụ thuộc controller. Cùng một mã có thể mang nghĩa khác nhau giữa Haas Lathe, Haas Mill, FANUC và LinuxCNC. Bản preview này ưu tiên nhận diện modal và hình học, không tuyên bố thay thế bộ điều khiển máy thật.
 
-- Giao diện desktop tối ưu cho màn hình máy tính.
-- Chỉ tập trung **G-code + màn hình 2D**, không chiếm chỗ bằng 3D.
-- Chế độ **PHAY**: X/Y.
-- Chế độ **TIỆN**: X/Z.
-- Phân tích G00/G01/G02/G03.
-- Hỗ trợ G90/G91 cơ bản.
-- Hiển thị đường chạy dao theo màu.
-- Zoom bằng con lăn.
-- Pan bằng kéo chuột.
-- Fit view.
-- Bật/tắt grid.
-- Chạy / tạm dừng / dừng / chạy từng bước.
-- Đọc file `.nc`, `.cnc`, `.gcode`, `.txt`.
-- Tải G-code xuống.
-- Thông số X/Y/Z/F/S/T.
-- Preview tiện dùng cùng vùng 2D.
-
-## Lưu ý
-
-Đây là simulator/visualizer phía client, không kết nối trực tiếp tới máy CNC. Trước khi đưa G-code vào máy thật cần kiểm tra lại controller, hệ tọa độ, dao, tốc độ và độ sâu cắt.
+Tài liệu tham chiếu: LinuxCNC G-code quick reference và Haas Mill/Lathe G-code lists.
 
 
-## Đồng bộ G-code ↔ 2D
-Màn hình bắt đầu trống, không có chương trình mẫu. Khi người dùng nhập hoặc xóa G-code, toolpath 2D được phân tích và vẽ lại ngay trong sự kiện `input`. Xóa lệnh chuyển động sẽ xóa đường chạy tương ứng.
+## 2D dimensions
+The 2D view displays numeric dimension ticks along X and Y/Z axes. Zoom controls and wheel zoom are disabled; Fit remains available for automatic framing.
+
+
+## ARC Renderer
+G02/G03 are rendered as true circular arcs in the 2D canvas using the engine's computed center, radius and sweep. The segmented representation remains available for simulation.
