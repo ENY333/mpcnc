@@ -31,21 +31,17 @@ function trimNum(v){
   if(Math.abs(v)<1e-9)v=0;
   return Number(v.toFixed(3)).toString();
 }
-function collectAxisValues(axis){
-  const r=state.result;
-  if(!r) return [0];
-  const vals=[0];
-  for(const s of r.segments||[]){
-    const a=axis==='x' ? s.x : s.y;
-    const b=axis==='x' ? s.x2 : s.y2;
-    if(Number.isFinite(a)) vals.push(a);
-    if(Number.isFinite(b)) vals.push(b);
-    if(s.meta?.arc && s.meta.arcCenter){
-      const c=axis==='x' ? s.meta.arcCenter.x : s.meta.arcCenter.y;
-      if(Number.isFinite(c)) vals.push(c);
-    }
-  }
-  return [...new Set(vals.map(v=>Number(v.toFixed(6))))].sort((a,b)=>a-b);
+function collectAxisTicks(axis){
+  const r=state.result, b=r?.bounds;
+  if(!r||!b) return [0];
+  const lo=axis==='x'?Math.min(0,b.minX):Math.min(0,b.minY);
+  const hi=axis==='x'?Math.max(0,b.maxX):Math.max(0,b.maxY);
+  const span=Math.max(1,hi-lo), step=niceStep(span/7);
+  const out=[];
+  const first=Math.ceil(lo/step)*step;
+  for(let v=first;v<=hi+step*.001;v+=step) out.push(Number(v.toFixed(6)));
+  if(!out.some(v=>Math.abs(v)<1e-8)) out.unshift(0);
+  return [...new Set(out.map(v=>Number(v.toFixed(6))))].sort((a,b)=>a-b);
 }
 function drawArrowHead(x,y,angle,size=5){
   ctx.beginPath();
@@ -54,94 +50,129 @@ function drawArrowHead(x,y,angle,size=5){
   ctx.lineTo(x-size*Math.cos(angle+Math.PI/6),y-size*Math.sin(angle+Math.PI/6));
   ctx.closePath();ctx.fill();
 }
-function drawDimLine(x1,y1,x2,y2,label,offset=14){
+function labelBox(text,x,y,angle=0,small=false){
+  ctx.save();
+  ctx.font=(small?'9px':'10px')+' Consolas, monospace';
+  const m=ctx.measureText(text), padX=4,padY=3;
+  ctx.translate(x,y);ctx.rotate(angle);
+  ctx.fillStyle='rgba(8,13,18,.94)';
+  ctx.fillRect(-m.width/2-padX,-7-padY,m.width+padX*2,14+padY*2);
+  ctx.fillStyle='#d4dde7';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,0,0);
+  ctx.restore();
+  return {x:x-m.width/2-padX,y:y-7-padY,w:m.width+padX*2,h:14+padY*2};
+}
+function rectOverlap(a,b,g=4){
+  return !(a.x+a.w+g<b.x||b.x+b.w+g<a.x||a.y+a.h+g<b.y||b.y+b.h+g<a.y);
+}
+function drawDimLine(x1,y1,x2,y2,label,offset=14,verticalText=false){
   const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);
-  if(len<8)return;
+  if(len<24)return null;
   const nx=-dy/len,ny=dx/len;
   const ax=x1+nx*offset,ay=y1+ny*offset,bx=x2+nx*offset,by=y2+ny*offset;
-  ctx.strokeStyle='rgba(190,205,220,.72)';ctx.fillStyle='#c8d3df';ctx.lineWidth=1;ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(195,208,221,.72)';ctx.fillStyle='#cbd6e1';ctx.lineWidth=1;ctx.setLineDash([]);
   ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(ax,ay);ctx.moveTo(x2,y2);ctx.lineTo(bx,by);ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
   const ang=Math.atan2(by-ay,bx-ax);
-  drawArrowHead(ax,ay,ang,4);drawArrowHead(bx,by,ang+Math.PI,4);
-  ctx.font='9px Consolas, monospace';ctx.textAlign='center';ctx.textBaseline='middle';
-  const tx=(ax+bx)/2,ty=(ay+by)/2;
-  const pad=3;
-  const m=ctx.measureText(label);ctx.fillStyle='#080d12';ctx.fillRect(tx-m.width/2-pad,ty-6-pad,m.width+pad*2,12+pad*2);
-  ctx.fillStyle='#c8d3df';ctx.fillText(label,tx,ty);
-  ctx.textAlign='start';ctx.textBaseline='alphabetic';
+  drawArrowHead(ax,ay,ang,4.5);drawArrowHead(bx,by,ang+Math.PI,4.5);
+  let textAng=0;
+  if(verticalText) textAng=-Math.PI/2;
+  return labelBox(label,(ax+bx)/2,(ay+by)/2,textAng,true);
 }
 function drawDimensions(w,h){
   const r=state.result,b=r?.bounds;if(!r||!b)return;
-  ctx.save();
-  ctx.setLineDash([]);
-  // Show every coordinate value actually present in the G-code on the axes.
-  const xVals=collectAxisValues('x'),yVals=collectAxisValues('y');
+  ctx.save();ctx.setLineDash([]);
   const origin=world(0,0);
   ctx.font='9px Consolas, monospace';
+
+  // Clean axis dimensions: a small number of engineering-style ticks rather than
+  // printing every coordinate value on top of one another.
+  const xVals=collectAxisTicks('x'),yVals=collectAxisTicks('y');
+  const ox=(origin[0]>=0&&origin[0]<=w)?origin[0]:Math.max(24,Math.min(w-24,46));
+  const oy=(origin[1]>=0&&origin[1]<=h)?origin[1]:Math.max(24,Math.min(h-24,h-30));
   for(const v of xVals){
-    const q=world(v,0)[0];
-    if(q<8||q>w-8)continue;
-    const base=(origin[1]>=8&&origin[1]<=h-8)?origin[1]:h-22;
-    ctx.strokeStyle='#536577';ctx.fillStyle='#93a4b6';ctx.lineWidth=1;
+    const q=world(v,0)[0]; if(q<14||q>w-14)continue;
+    const base=oy;ctx.strokeStyle='#536577';ctx.fillStyle='#93a4b6';
     ctx.beginPath();ctx.moveTo(q,base-4);ctx.lineTo(q,base+4);ctx.stroke();
     const txt=trimNum(v),tw=ctx.measureText(txt).width;
-    ctx.fillText(txt,Math.max(2,Math.min(w-tw-2,q-tw/2)),Math.min(h-3,base+15));
+    ctx.fillText(txt,Math.max(2,Math.min(w-tw-2,q-tw/2)),Math.min(h-4,base+15));
   }
   for(const v of yVals){
-    const q=world(0,v)[1];
-    if(q<8||q>h-8)continue;
-    const base=(origin[0]>=8&&origin[0]<=w-8)?origin[0]:22;
-    ctx.strokeStyle='#536577';ctx.fillStyle='#93a4b6';ctx.lineWidth=1;
+    const q=world(0,v)[1]; if(q<14||q>h-14)continue;
+    const base=ox;ctx.strokeStyle='#536577';ctx.fillStyle='#93a4b6';
     ctx.beginPath();ctx.moveTo(base-4,q);ctx.lineTo(base+4,q);ctx.stroke();
-    const txt=trimNum(v);ctx.fillText(txt,Math.min(w-30,base+8),Math.max(10,q-5));
+    const txt=trimNum(v),tw=ctx.measureText(txt).width;
+    ctx.fillText(txt,Math.min(w-tw-2,base+8),Math.max(10,q-5));
   }
 
-  // Dimension every actual XY move from the program. Linear moves get their
-  // signed axis delta/length; arcs get their programmed radius (R or CR=).
+  // Dimension labels are collision-checked and placed outside the toolpath.
+  const occupied=[];
+  const place=(box)=>{if(!box)return false;if(box.x<2||box.y<2||box.x+box.w>w-2||box.y+box.h>h-2)return false;if(occupied.some(o=>rectOverlap(o,box)))return false;occupied.push(box);return true};
+
+  // Overall X/Y dimensions. These are always the first/most important labels.
+  if(b.maxX-b.minX>1e-7){
+    const p1=world(b.minX,b.maxY),p2=world(b.maxX,b.maxY);
+    for(const off of [22,34,46]){const box=drawDimLine(p1[0],p1[1],p2[0],p2[1],`X ${trimNum(b.maxX-b.minX)}`,off);if(place(box))break;}
+  }
+  if(b.maxY-b.minY>1e-7){
+    const p1=world(b.minX,b.minY),p2=world(b.minX,b.maxY);
+    for(const off of [22,34,46]){const box=drawDimLine(p1[0],p1[1],p2[0],p2[1],`Y ${trimNum(b.maxY-b.minY)}`,off,true);if(place(box))break;}
+  }
+
   let shown=0;
   for(const s of r.segments){
-    if(shown>120)break;
-    const dx=Number(s.x2)-Number(s.x),dy=Number(s.y2)-Number(s.y);
-    const adx=Math.abs(dx),ady=Math.abs(dy),len=Math.hypot(dx,dy);
+    if(shown>80)break;
+    if(s.rapid||s.g==='G00')continue;
+    const dx=Number(s.x2)-Number(s.x),dy=Number(s.y2)-Number(s.y),len=Math.hypot(dx,dy);
     if(!Number.isFinite(len)||len<1e-7)continue;
     const a=world(s.x,s.y),bb=world(s.x2,s.y2);
-    if(a[0]<-40||a[0]>w+40||a[1]<-40||a[1]>h+40||bb[0]<-40||bb[0]>w+40||bb[1]<-40||bb[1]>h+40)continue;
+    if(a[0]<-30||a[0]>w+30||a[1]<-30||a[1]>h+30||bb[0]<-30||bb[0]>w+30||bb[1]<-30||bb[1]>h+30)continue;
+
     if(s.meta?.arc){
-      const rr=Number(s.meta.arcRadius);
-      if(Number.isFinite(rr)){
-        const mx=(a[0]+bb[0])/2,my=(a[1]+bb[1])/2;
-        ctx.fillStyle='#c8d3df';ctx.font='9px Consolas, monospace';ctx.textAlign='center';ctx.textBaseline='middle';
-        const label=`R${trimNum(rr)}`;
-        const mw=ctx.measureText(label).width;ctx.fillStyle='#080d12';ctx.fillRect(mx-mw/2-3,my-7,mw+6,14);
-        ctx.fillStyle='#c8d3df';ctx.fillText(label,mx,my);ctx.textAlign='start';ctx.textBaseline='alphabetic';shown++;
+      const m=s.meta, rr=Number(m.arcRadius);
+      if(!Number.isFinite(rr))continue;
+      const center=m.arcCenter;
+      const start=Number(m.arcStart)||Math.atan2(m.arcStartPoint.y-center.y,m.arcStartPoint.x-center.x);
+      const sweep=Number(m.arcSweep)||0;
+      const mid=start+sweep/2;
+      const q=world(center.x+Math.cos(mid)*rr,center.y+Math.sin(mid)*rr);
+      const label=`R ${trimNum(rr)}`;
+      let placed=false;
+      for(const off of [0,16,28]){
+        const angle=Math.atan2(q[1]-world(center.x,center.y)[1],q[0]-world(center.x,center.y)[0]);
+        const x=q[0]+Math.cos(angle)*off,y=q[1]+Math.sin(angle)*off;
+        const box=labelBox(label,x,y,0,true); if(place(box)){placed=true;break;}
       }
+      if(placed)shown++;
       continue;
     }
-    if(s.g==='G00')continue;
-    // Avoid painting text on top of tiny moves; the coordinate ticks still show them.
-    if(adx>=2 || ady>=2){
-      if(adx>=2 && ady<0.0001) drawDimLine(a[0],a[1],bb[0],bb[1],`X ${trimNum(adx)}`,14);
-      else if(ady>=2 && adx<0.0001) drawDimLine(a[0],a[1],bb[0],bb[1],`Y ${trimNum(ady)}`,14);
-      else {
-        const mx=(a[0]+bb[0])/2,my=(a[1]+bb[1])/2;
-        ctx.fillStyle='#080d12';ctx.font='9px Consolas, monospace';
-        const label=`ΔX ${trimNum(dx)}  ΔY ${trimNum(dy)}  L ${trimNum(len)}`;
-        const mw=ctx.measureText(label).width;ctx.fillRect(mx-mw/2-3,my-7,mw+6,14);
-        ctx.fillStyle='#c8d3df';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,mx,my);ctx.textAlign='start';ctx.textBaseline='alphabetic';
-      }
-      shown++;
-    }
-  }
 
-  // Overall programmed extents, automatically derived from the actual path.
-  const minX=b.minX,maxX=b.maxX,minY=b.minY,maxY=b.maxY;
-  if(maxX-minX>0.0001){
-    const p1=world(minX,maxY),p2=world(maxX,maxY);
-    drawDimLine(p1[0],p1[1],p2[0],p2[1],trimNum(maxX-minX),26);
-  }
-  if(maxY-minY>0.0001){
-    const p1=world(minX,minY),p2=world(minX,maxY);
-    drawDimLine(p1[0],p1[1],p2[0],p2[1],trimNum(maxY-minY),26);
+    // For straight moves use the conventional X/Y dimension for axis-aligned
+    // cuts. Diagonal cuts get one uncluttered true-length dimension.
+    const px=Math.abs(dx),py=Math.abs(dy);
+    if(Math.max(px,py)<2)continue;
+    let placed=false;
+    if(px>1e-7&&py<1e-7){
+      for(const off of [12,20,30]){const box=drawDimLine(a[0],a[1],bb[0],bb[1],`X ${trimNum(px)}`,off);if(place(box)){placed=true;break;}}
+    }else if(py>1e-7&&px<1e-7){
+      for(const off of [12,20,30]){const box=drawDimLine(a[0],a[1],bb[0],bb[1],`Y ${trimNum(py)}`,off,true);if(place(box)){placed=true;break;}}
+    }else if(len>12){
+      // Diagonal moves are NOT dimensioned by their diagonal length.
+      // Show the horizontal and vertical components, like a technical drawing.
+      // This keeps the dimension tied to the actual X/Y travel in the G-code.
+      const x1=a[0], y1=a[1], x2=bb[0], y2=bb[1];
+      const minX=Math.min(x1,x2), maxX=Math.max(x1,x2);
+      const minY=Math.min(y1,y2), maxY=Math.max(y1,y2);
+      if(px>=2){
+        const yy=Math.max(y1,y2)+12;
+        const box=drawDimLine(minX,yy,maxX,yy,`X ${trimNum(px)}`,0);
+        if(place(box)) placed=true;
+      }
+      if(py>=2){
+        const xx=Math.max(x1,x2)+12;
+        const box=drawDimLine(xx,minY,xx,maxY,`Y ${trimNum(py)}`,0,true);
+        if(place(box)) placed=true;
+      }
+    }
+    if(placed)shown++;
   }
   ctx.restore();
 }
