@@ -22,3 +22,63 @@ button:hover{background:#18222d;border-color:#2b3a49}.app{height:100vh;display:f
 .diagnostics{min-width:0}.card-title{display:flex;justify-content:space-between}.card-title b{font:10px Consolas,monospace;color:#f5c451}.diag-list{height:65px;overflow:auto;font:9px/15px Consolas,monospace}.diag{padding:2px 5px;border-bottom:1px solid #17212b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.diag b{color:#8da0b4;margin-right:5px}.diag.warning{color:#f5c451}.diag.error{color:#f87171}.diag.info{color:#7ec9ff}.diag.empty{color:#657689}.toolbar button{display:flex;align-items:center;justify-content:center;gap:3px}.toolbar button span{display:block}.menubar select{min-width:92px}.topbar{box-shadow:0 1px 0 #0b1016}.view-panel{box-shadow:inset 0 1px 0 rgba(255,255,255,.01)}
 @media(max-width:1100px){.bottom{grid-template-columns:1.2fr 1fr}.diagnostics{display:none}}
 .controller-badge{padding:3px 7px;border-radius:10px;border:1px solid #2a3c4d;background:#101d29;color:#7ec9ff;font:9px Consolas,monospace}.diag{width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid #17212b}.diag:hover{background:#17222d}.diag span{float:right;color:#718398}.toolbar .mode{display:inline-flex;align-items:center;justify-content:center}.panel-head .badge{white-space:nowrap}
+
+
+/* v3.4 — FIXED CNC WORKSPACE / RESPONSIVE ALL DEVICES */
+html,body{min-width:0;overflow:hidden}
+.app{min-width:0;width:100%;height:100dvh;max-width:100vw;overflow:hidden}
+.topbar{flex:0 0 43px;min-width:0;overflow:hidden}
+.menubar{flex:0 0 29px;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none}
+.menubar::-webkit-scrollbar{display:none}
+.toolbar{flex:0 0 54px;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:thin}
+.toolbar .grow{min-width:10px}
+.workspace{flex:1 1 auto;min-height:220px;height:auto;min-width:0;width:100%;grid-template-columns:minmax(250px,38%) minmax(0,1fr);gap:5px;overflow:hidden}
+.editor-panel,.view-panel{min-width:0;min-height:0;height:100%;width:100%}
+.editor-wrap{min-height:0;overflow:hidden}
+.editor-wrap textarea{min-width:0;min-height:0;overflow:auto;scrollbar-width:auto}
+.line-numbers{min-height:0;overflow:hidden}
+.canvas-wrap{min-width:0;min-height:0;overflow:hidden}
+.view-panel{contain:layout paint}
+.bottom{flex:0 0 104px;min-width:0;overflow:hidden}
+.statusbar{flex:0 0 22px;min-width:0;overflow:hidden;white-space:nowrap}
+.statusbar span{overflow:hidden;text-overflow:ellipsis}
+.coords{max-width:48%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* Never let the two main panes stack or move below one another. */
+@media(max-width:900px){
+  :root{--editor:40%}
+  .topbar{height:38px;flex-basis:38px;padding:0 7px;gap:8px}
+  .brand{min-width:145px}.brand small{display:none}.top-status{font-size:8px}
+  .menubar{height:27px;flex-basis:27px;padding:0 4px}
+  .menubar button{padding:3px 6px;font-size:10px}
+  .toolbar{height:48px;flex-basis:48px;padding:3px 5px;gap:2px}
+  .toolbar button{height:40px;min-width:40px;padding:2px 5px}
+  .toolbar button span{font-size:8px}
+  .workspace{grid-template-columns:40% 60%;gap:3px;padding:3px;min-height:200px}
+  .panel-head,.view-head{height:32px;padding:0 6px}
+  .tab{padding:0 7px;font-size:10px}.badge{font-size:8px;padding:2px 5px}
+  .view-head strong{font-size:10px}.view-head small{font-size:8px}
+  .coords{font-size:8px;max-width:55%}
+  .bottom{display:none}
+  .statusbar{height:19px;flex-basis:19px;font-size:8px}
+  .statusbar span:last-child{display:none}
+  .editor-wrap{grid-template-columns:34px minmax(0,1fr)}
+  .line-numbers{font-size:9px;line-height:17px;padding-right:5px}
+  .editor-wrap textarea{font-size:9px;line-height:17px;padding:7px 6px}
+  .view-footer{height:22px;flex-basis:22px;padding:0 5px}
+  .legend{gap:3px;font-size:8px}
+}
+@media(max-width:600px){
+  .brand{min-width:112px}.brand strong{font-size:11px}.logo{width:22px;height:22px}
+  .top-status{display:none}
+  .menubar label,.controller-badge{display:none}
+  .workspace{grid-template-columns:42% 58%}
+  .view-head .coords{max-width:52%}
+  .coords b,.coords span{font-size:8px}
+  .toolbar i{margin:0 1px}
+  .toolbar .mode{min-width:50px}
+}
+@media(max-height:620px){
+  .bottom{display:none}
+  .workspace{min-height:0}
+}
