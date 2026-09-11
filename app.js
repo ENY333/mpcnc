@@ -104,64 +104,46 @@ function draw(){
   const r=state.result;
   if(!r){return}
 
-  // Vẽ toolpath. Cung G02/G03 được renderer bằng ARC thật,
-  // không còn biến thành hình gấp khúc trên màn hình.
-  ctx.setLineDash([]);
+  // Render each CNC move. Arcs are reconstructed from the CNC engine's
+  // machine-space center/start/sweep and then projected point-by-point.
+  // This avoids Canvas clockwise/anticlockwise ambiguity caused by the
+  // screen Y axis being inverted relative to CNC coordinates.
   let i=0;
   while(i<r.segments.length){
     const s=r.segments[i];
     const selected=state.selectedLine===s.line;
     ctx.strokeStyle=selected?'#ffffff':(COLORS[s.g]||'#8290a1');
     ctx.lineWidth=selected?2.7:1.65;
+    ctx.setLineDash(s.rapid?[6,5]:[]);
 
-    if(s.meta?.arc && s.meta.arcCenter){
-      const line=s.line, m=s.meta;
-      let j=i+1;
-      while(j<r.segments.length && r.segments[j].line===line && r.segments[j].meta?.arc) j++;
+    if(s.meta?.arc && s.meta.arcCenter && s.meta.arcStartPoint){
+      const m=s.meta;
+      const radius=Number(m.arcRadius)||Math.hypot(m.arcStartPoint.x-m.arcCenter.x,m.arcStartPoint.y-m.arcCenter.y);
+      const sweep=Number(m.arcSweep)||0;
+      const start=Number(m.arcStart)||Math.atan2(m.arcStartPoint.y-m.arcCenter.y,m.arcStartPoint.x-m.arcCenter.x);
+      const steps=Math.max(12,Math.min(720,Math.ceil(Math.abs(sweep)*radius/1.5)));
 
-      // ARC RENDERER V4: derive the screen angles from the actual transformed
-      // endpoints instead of reusing Cartesian angles. This removes the
-      // common Y-axis inversion error that makes G02/G03 appear on the wrong side.
-      const c=world(m.arcCenter.x,m.arcCenter.y);
-      const sp=world(m.arcStartPoint.x,m.arcStartPoint.y);
-      const ep=world(m.arcEndPoint.x,m.arcEndPoint.y);
-      const rr=Math.hypot(sp[0]-c[0],sp[1]-c[1]);
-      let a0=Math.atan2(sp[1]-c[1],sp[0]-c[0]);
-      let a1=Math.atan2(ep[1]-c[1],ep[0]-c[0]);
-
-      // CNC G02 is clockwise in machine coordinates (Y-up). Because the
-      // canvas has Y-down, the visible direction is represented by the
-      // opposite Canvas anticlockwise flag.
-      const anticlockwise=!m.cw;
-      const tau=Math.PI*2;
-      if(anticlockwise){
-        while(a1>a0)a1-=tau;
-      }else{
-        while(a1<a0)a1+=tau;
-      }
-      // Preserve the exact sweep calculated by the CNC engine, including
-      // the major/minor choice from signed R/CR.
-      const desired=Math.abs(m.arcSweep||0);
-      if(desired>Math.PI*1.999){
-        a1=a0+(anticlockwise?-desired:desired);
-      }else if(desired>0){
-        const sign=anticlockwise?-1:1;
-        a1=a0+sign*Math.min(desired,tau);
-      }
-
-      ctx.setLineDash([]);
       ctx.beginPath();
-      ctx.arc(c[0],c[1],rr,a0,a1,anticlockwise);
+      for(let k=0;k<=steps;k++){
+        const a=start+sweep*(k/steps);
+        const wx=m.arcCenter.x+Math.cos(a)*radius;
+        const wy=m.arcCenter.y+Math.sin(a)*radius;
+        const q=world(wx,wy);
+        if(k===0)ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]);
+      }
       ctx.stroke();
-      i=j;
+
+      // Consume all engine segments belonging to this same arc move.
+      const line=s.line;
+      while(i<r.segments.length && r.segments[i].line===line && r.segments[i].meta?.arc)i++;
       continue;
     }
 
     const a=world(s.x,s.y),b=world(s.x2,s.y2);
-    ctx.setLineDash(s.rapid?[6,5]:[]);
     ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
     if(i===state.step-1){
-      ctx.setLineDash([]);ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b[0],b[1],4,0,Math.PI*2);ctx.fill();
+      ctx.setLineDash([]);ctx.fillStyle='#fff';
+      ctx.beginPath();ctx.arc(b[0],b[1],4,0,Math.PI*2);ctx.fill();
     }
     i++;
   }
