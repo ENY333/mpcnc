@@ -2,73 +2,118 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080d12">
-<title>CNC Studio Web v3</title>
+<title>CNC Studio</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app">
-<header class="topbar">
-  <div class="brand"><span class="logo">C</span><div><strong>CNC Studio</strong><small>Web v3 • CNC Simulator</small></div></div>
-  <div class="top-status"><span class="dot"></span> Offline / GitHub Pages</div>
-</header>
-<div class="menubar">
-  <button>Tệp</button><button>Chỉnh sửa</button><button>Xem</button>
-  <button>Mô phỏng</button><button>Kiểm tra</button><button>Học CNC</button>
-  <span class="grow"></span>
-  <label>Controller <select id="controller"><option>FANUC</option><option>HAAS</option><option>LINUXCNC</option></select></label>
-  <span id="controllerBadge" class="controller-badge">FANUC</span>
-</div>
-<section class="toolbar">
-  <button id="newBtn">＋<span>Mới</span></button>
-  <button id="openBtn">📂<span>Mở</span></button>
-  <button id="saveBtn">💾<span>Tải</span></button><i></i>
-  <button id="runBtn" class="primary">▶<span>Chạy</span></button>
-  <button id="pauseBtn">Ⅱ<span>Dừng</span></button>
-  <button id="stopBtn" class="danger">■<span>Stop</span></button>
-  <button id="stepBtn">⏭<span>Bước</span></button>
-  <button id="resetBtn">↻<span>Reset</span></button><i></i>
-  <button id="millingBtn" class="mode active">PHAY</button>
-  <button id="turningBtn" class="mode">TIỆN</button>
-  <span class="grow"></span>
-  <button id="fitBtn">⛶<span>Fit</span></button>
-  <input id="fileInput" type="file" accept=".nc,.cnc,.gcode,.txt" hidden>
-</section>
+  <header class="topbar legacy-ui" aria-hidden="true">
+    <div class="brand"><span class="logo">C</span><div><strong>CNC Studio</strong><small>Web v3 • CNC Simulator</small></div></div>
+    <div class="top-status"><span class="dot"></span> Offline / GitHub Pages</div>
+  </header>
 
-<main class="workspace">
-<section class="editor-panel">
-  <div class="panel-head"><div class="tabs"><span class="tab active">program.nc</span></div><span id="modeBadge" class="badge">PHAY • G17 • G90 • mm</span></div>
-  <div class="editor-wrap"><div id="lineNumbers" class="line-numbers"></div><textarea id="code" spellcheck="false" wrap="off"></textarea></div>
-  <div class="editor-footer"><span id="cursorInfo">Dòng 1 / 1</span><span id="dirty">● Chưa lưu</span></div>
-</section>
-
-<section class="view-panel">
-  <div class="view-head">
-    <div><strong id="viewTitle">2D • TOP VIEW (X-Y)</strong><small id="viewSub">Toolpath X/Y • live parser</small></div>
-    <div class="coords"><b>X</b> <span id="xPos">0.000</span> &nbsp; <b id="coordYLabel">Y</b> <span id="yPos">0.000</span> &nbsp; <b>Z</b> <span id="zPos">5.000</span></div>
+  <div class="menubar" id="menubar">
+    <div class="menu-group">
+      <button class="menu-trigger" data-menu="fileMenu">Tệp</button>
+      <div class="menu-popover" id="fileMenu">
+        <button data-action="new">＋ Mới</button>
+        <button data-action="open">📂 Mở</button>
+        <button data-action="save">💾 Tải xuống G-code</button>
+      </div>
+    </div>
+    <div class="menu-group">
+      <button class="menu-trigger" data-menu="editMenu">Chỉnh sửa</button>
+      <div class="menu-popover" id="editMenu">
+        <button data-action="selectAll">Chọn tất cả</button>
+        <button data-action="clear">Xóa code</button>
+      </div>
+    </div>
+    <div class="menu-group">
+      <button class="menu-trigger" data-menu="viewMenu">Xem</button>
+      <div class="menu-popover" id="viewMenu">
+        <button data-action="fit">⛶ Tự Fit khung 2D</button>
+        <button data-action="resetView">↻ Đặt lại khung nhìn</button>
+      </div>
+    </div>
+    <div class="menu-group">
+      <button class="menu-trigger" data-menu="simMenu">Mô phỏng</button>
+      <div class="menu-popover" id="simMenu">
+        <button data-action="run">▶ Chạy</button>
+        <button data-action="pause">Ⅱ Dừng / tiếp tục</button>
+        <button data-action="stop">■ Stop</button>
+        <button data-action="step">⏭ Bước</button>
+        <button data-action="reset">↻ Reset</button>
+        <div class="menu-separator"></div>
+        <button data-action="milling">PHAY</button>
+        <button data-action="turning">TIỆN</button>
+      </div>
+    </div>
+    <div class="menu-group">
+      <button class="menu-trigger" data-menu="checkMenu">Kiểm tra</button>
+      <div class="menu-popover" id="checkMenu">
+        <button data-action="check">✓ Kiểm tra G-code</button>
+        <button data-action="focusError">Tới lỗi đầu tiên</button>
+      </div>
+    </div>
+    <div class="menu-group">
+      <button class="menu-trigger" data-menu="learnMenu">Học CNC</button>
+      <div class="menu-popover" id="learnMenu">
+        <button data-action="help">G02 / G03 / R / CR= / IJK</button>
+        <button data-action="shortcuts">Phím tắt</button>
+      </div>
+    </div>
+    <span class="grow"></span>
   </div>
-  <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
-  <div class="view-footer"><div class="legend"><span class="rapid"></span>G00 <span class="feed"></span>G01 <span class="cw"></span>G02 <span class="ccw"></span>G03</div></div>
-</section>
-</main>
 
-<section class="bottom">
-  <div class="info-card"><div class="card-title">CHƯƠNG TRÌNH</div><div class="metrics">
-    <div><small>Dòng</small><b id="metricLines">1</b></div>
-    <div><small>Đường chạy</small><b id="metricLength">0.000 mm</b></div>
-    <div><small>Thời gian</small><b id="metricTime">0:00</b></div>
-    <div><small>Trạng thái</small><b id="metricState">Sẵn sàng</b></div>
-  </div></div>
-  <div class="info-card"><div class="card-title">MÁY</div><div class="machine-grid">
-    <span>X <b id="mx">0.000</b></span><span>Y <b id="my">0.000</b></span><span>Z <b id="mz">5.000</b></span>
-    <span>F <b id="mf">0</b></span><span>S <b id="ms">0</b></span><span>T <b id="mt">1</b></span>
-  </div></div>
-  <div class="info-card diagnostics"><div class="card-title">KIỂM TRA G-CODE <b id="diagCount">0</b></div><div id="diagList" class="diag-list"><div class="diag empty">Không có cảnh báo</div></div></div>
-</section>
-<footer class="statusbar"><span id="statusText">Sẵn sàng • Live parser v3</span><span>Ctrl+S tải • Ctrl+Enter chạy</span></footer>
+  <!-- Legacy controls stay in DOM for compatibility with the simulator engine, but are hidden. -->
+  <section class="toolbar legacy-ui" aria-hidden="true">
+    <button id="newBtn">＋<span>Mới</span></button><button id="openBtn">📂<span>Mở</span></button><button id="saveBtn">💾<span>Tải</span></button>
+    <i></i><button id="runBtn" class="primary">▶<span>Chạy</span></button><button id="pauseBtn">Ⅱ<span>Dừng</span></button><button id="stopBtn" class="danger">■<span>Stop</span></button><button id="stepBtn">⏭<span>Bước</span></button><button id="resetBtn">↻<span>Reset</span></button>
+    <i></i><button id="millingBtn" class="mode active">PHAY</button><button id="turningBtn" class="mode">TIỆN</button><span class="grow"></span><button id="fitBtn">⛶<span>Fit</span></button><input id="fileInput" type="file" accept=".nc,.cnc,.gcode,.txt" hidden>
+  </section>
+
+  <main class="workspace">
+    <section class="editor-panel">
+      <div class="panel-head">
+        <div class="tabs"><span class="tab active">program.nc</span></div>
+        <span id="modeBadge" class="badge legacy-ui">PHAY • G17 • G90</span>
+      </div>
+      <div class="editor-wrap">
+        <div id="lineNumbers" class="line-numbers"></div>
+        <textarea id="code" spellcheck="false" wrap="off"></textarea>
+      </div>
+      <div class="editor-footer legacy-ui">
+        <span id="cursorInfo">Dòng 1</span><span id="dirty">● Chưa lưu</span>
+      </div>
+    </section>
+
+    <section class="view-panel">
+      <div class="view-head">
+        <strong id="viewTitle">2D</strong>
+        <div class="coords legacy-ui">
+          <b>X</b> <span id="xPos">0.000</span> &nbsp; <b id="coordYLabel">Y</b> <span id="yPos">0.000</span> &nbsp; <b>Z</b> <span id="zPos">5.000</span>
+        </div>
+        <span id="controller" class="legacy-ui">FANUC</span>
+        <span id="controllerBadge" class="legacy-ui">FANUC</span>
+      </div>
+      <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
+      <div class="view-footer">
+        <div class="legend"><span class="rapid"></span> G00 <span class="feed"></span> G01 <span class="cw"></span> G02 <span class="ccw"></span> G03</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Hidden compatibility data: no longer displayed on screen. -->
+  <section class="bottom legacy-ui" aria-hidden="true">
+    <div class="info-card"><div class="card-title">CHƯƠNG TRÌNH</div><div class="metrics"><div><small>Dòng</small><b id="metricLines">1</b></div><div><small>Đường chạy</small><b id="metricLength">0.000 mm</b></div><div><small>Thời gian</small><b id="metricTime">0:00</b></div><div><small>Trạng thái</small><b id="metricState">Sẵn sàng</b></div></div></div>
+    <div class="info-card machine"><div class="card-title">MÁY</div><div class="machine-grid"><span>X <b id="mx">0.000</b></span><span>Y <b id="my">0.000</b></span><span>Z <b id="mz">5.000</b></span><span>F <b id="mf">0</b></span><span>S <b id="ms">0</b></span><span>T <b id="mt">1</b></span></div></div>
+    <div class="info-card diagnostics"><div class="card-title">KIỂM TRA G-CODE <b id="diagCount">0</b></div><div id="diagList" class="diag-list"></div></div>
+  </section>
+  <footer class="statusbar legacy-ui" aria-hidden="true"><span id="statusText">Sẵn sàng</span><span>Ctrl+S tải • Ctrl+Enter chạy</span></footer>
 </div>
-<script src="cnc-engine.js?v=4.0.0"></script>
-<script src="app.js?v=4.0.0"></script>
+<script src="cnc-engine.js"></script>
+<script src="app.js?v=4.0"></script>
 </body>
 </html>
