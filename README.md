@@ -39,3 +39,9 @@ The 2D view displays numeric dimension ticks along X and Y/Z axes. Zoom controls
 
 ## ARC Renderer
 G02/G03 are rendered as true circular arcs in the 2D canvas using the engine's computed center, radius and sweep. The segmented representation remains available for simulation.
+
+
+## v3.3
+- Removed 2D Grid completely.
+- Rebuilt G02/G03 renderer using transformed endpoints + CNC arc direction and signed R/CR sweep.
+- Arc geometry remains separate from the linear segment tessellation used for simulation.

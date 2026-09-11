@@ -94,7 +94,7 @@ function arc(out,a,b,center,cw,g,line,meta){
  if(cw&&d>=0)d-=TAU;if(!cw&&d<=0)d+=TAU;
  if(len2(a,b)<EPS)d=cw?-TAU:TAU;
  const steps=Math.max(8,Math.min(3600,Math.ceil(Math.abs(d)*r/1.25)));
- const arcMeta={...meta,arc:true,arcCenter:{x:center.x,y:center.y},arcRadius:r,arcStart:s,arcSweep:d};
+ const arcMeta={...meta,arc:true,arcCenter:{x:center.x,y:center.y},arcRadius:r,arcStart:s,arcSweep:d,cw,arcStartPoint:{x:a.x,y:a.y},arcEndPoint:{x:b.x,y:b.y}};
  let p={...a}; for(let i=1;i<=steps;i++){const t=i/steps,ang=s+d*t,q={x:center.x+Math.cos(ang)*r,y:center.y+Math.sin(ang)*r,z:a.z+(b.z-a.z)*t};addSegment(out,p,q,g,line,arcMeta);p=q}
 }
 function rotatePoint(p,c,deg){const a=deg*Math.PI/180,co=Math.cos(a),si=Math.sin(a),x=p.x-c.x,y=p.y-c.y;return {x:c.x+x*co-y*si,y:c.y+x*si+y*co,z:p.z}}

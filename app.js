@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const $=s=>document.querySelector(s), code=$('#code'),canvas=$('#canvas'),ctx=canvas.getContext('2d');
-const state={mode:'milling',controller:'FANUC',result:null,panX:0,panY:0,grid:true,step:0,running:false,paused:false,timer:null,autoFit:true,selectedLine:null};
+const state={mode:'milling',controller:'FANUC',result:null,panX:0,panY:0,grid:false,step:0,running:false,paused:false,timer:null,autoFit:true,selectedLine:null};
 const COLORS={G00:'#f87171',G01:'#38a9ff',G02:'#34d399',G03:'#f5c451'};
 const unitName=()=>state.result?.state?.units==='G20'?'inch':'mm';
 function lines(){return code.value.replace(/\r/g,'').split('\n')}
@@ -21,7 +21,6 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':
 function gotoLine(n){const ls=lines();let pos=0;for(let i=1;i<n;i++)pos+=ls[i-1].length+1;code.focus();code.setSelectionRange(pos,pos+ls[n-1]?.length||pos);const lh=parseFloat(getComputedStyle(code).lineHeight)||18;code.scrollTop=Math.max(0,(n-4)*lh);$('#lineNumbers').scrollTop=code.scrollTop;state.selectedLine=n;draw()}
 function resize(){const r=canvas.getBoundingClientRect(),d=devicePixelRatio||1;canvas.width=Math.max(1,r.width*d);canvas.height=Math.max(1,r.height*d);ctx.setTransform(d,0,0,d,0,0);draw()}
 function world(x,y){const w=canvas.clientWidth,h=canvas.clientHeight,b=state.result?.bounds;if(!b)return[30,h-30];const pad=46,sx=Math.max(1,b.maxX-b.minX),sy=Math.max(1,b.maxY-b.minY),scale=Math.max(.001,Math.min((w-pad*2)/sx,(h-pad*2)/sy));return[pad+(x-b.minX)*scale+state.panX,h-pad-(y-b.minY)*scale+state.panY]}
-function grid(w,h){ctx.strokeStyle='#121b24';ctx.lineWidth=1;for(let x=0;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}}
 function niceStep(span){
   const target=Math.max(1,span/8);
   const p=Math.pow(10,Math.floor(Math.log10(target)));
@@ -102,7 +101,6 @@ function draw(){
   const w=canvas.clientWidth,h=canvas.clientHeight;
   ctx.clearRect(0,0,w,h);
   ctx.fillStyle='#080d12';ctx.fillRect(0,0,w,h);
-  if(state.grid)grid(w,h);
   const r=state.result;
   if(!r){return}
 
@@ -120,14 +118,40 @@ function draw(){
       const line=s.line, m=s.meta;
       let j=i+1;
       while(j<r.segments.length && r.segments[j].line===line && r.segments[j].meta?.arc) j++;
+
+      // ARC RENDERER V4: derive the screen angles from the actual transformed
+      // endpoints instead of reusing Cartesian angles. This removes the
+      // common Y-axis inversion error that makes G02/G03 appear on the wrong side.
       const c=world(m.arcCenter.x,m.arcCenter.y);
-      const edge=world(m.arcCenter.x+m.arcRadius,m.arcCenter.y);
-      const rr=Math.hypot(edge[0]-c[0],edge[1]-c[1]);
-      const startScreen=-m.arcStart;
-      const endScreen=startScreen-m.arcSweep;
+      const sp=world(m.arcStartPoint.x,m.arcStartPoint.y);
+      const ep=world(m.arcEndPoint.x,m.arcEndPoint.y);
+      const rr=Math.hypot(sp[0]-c[0],sp[1]-c[1]);
+      let a0=Math.atan2(sp[1]-c[1],sp[0]-c[0]);
+      let a1=Math.atan2(ep[1]-c[1],ep[0]-c[0]);
+
+      // CNC G02 is clockwise in machine coordinates (Y-up). Because the
+      // canvas has Y-down, the visible direction is represented by the
+      // opposite Canvas anticlockwise flag.
+      const anticlockwise=!m.cw;
+      const tau=Math.PI*2;
+      if(anticlockwise){
+        while(a1>a0)a1-=tau;
+      }else{
+        while(a1<a0)a1+=tau;
+      }
+      // Preserve the exact sweep calculated by the CNC engine, including
+      // the major/minor choice from signed R/CR.
+      const desired=Math.abs(m.arcSweep||0);
+      if(desired>Math.PI*1.999){
+        a1=a0+(anticlockwise?-desired:desired);
+      }else if(desired>0){
+        const sign=anticlockwise?-1:1;
+        a1=a0+sign*Math.min(desired,tau);
+      }
+
       ctx.setLineDash([]);
       ctx.beginPath();
-      ctx.arc(c[0],c[1],rr,startScreen,endScreen,m.arcSweep>0);
+      ctx.arc(c[0],c[1],rr,a0,a1,anticlockwise);
       ctx.stroke();
       i=j;
       continue;
@@ -149,6 +173,6 @@ function reset(){clearInterval(state.timer);state.running=false;state.paused=fal
 function run(){parse();if(!state.result.segments.length)return;state.running=true;state.paused=false;state.step=0;$('#metricState').textContent='Đang chạy';$('#statusText').textContent='Đang mô phỏng G-code';clearInterval(state.timer);state.timer=setInterval(()=>{if(state.paused)return;state.step++;if(state.step>0)state.selectedLine=state.result.segments[state.step-1]?.line||null;draw();if(state.step>=state.result.segments.length){clearInterval(state.timer);state.running=false;$('#metricState').textContent='Hoàn tất';$('#statusText').textContent='Mô phỏng hoàn tất'}},30)}
 function dl(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
 code.addEventListener('input',()=>{state.autoFit=true;updateLines();$('#dirty').textContent='● Chưa lưu';parse()});code.addEventListener('keyup',cursor);code.addEventListener('click',cursor);code.addEventListener('scroll',()=>$('#lineNumbers').scrollTop=code.scrollTop);
-$('#controller').onchange=e=>{state.controller=e.target.value;state.autoFit=true;parse()};$('#runBtn').onclick=run;$('#pauseBtn').onclick=()=>{state.paused=!state.paused;$('#metricState').textContent=state.paused?'Tạm dừng':'Đang chạy'};$('#stopBtn').onclick=reset;$('#resetBtn').onclick=reset;$('#stepBtn').onclick=()=>{if(!state.result)parse();state.step=Math.min(state.step+1,state.result.segments.length);state.selectedLine=state.result.segments[state.step-1]?.line||null;$('#metricState').textContent='Bước';draw()};$('#millingBtn').onclick=()=>setMode('milling');$('#turningBtn').onclick=()=>setMode('turning');$('#fitBtn').onclick=()=>{state.autoFit=true;state.panX=0;state.panY=0;parse()};$('#gridBtn').onclick=e=>{state.grid=!state.grid;e.currentTarget.classList.toggle('active',state.grid);draw()};$('#newBtn').onclick=()=>{code.value='';updateLines();reset();state.autoFit=true;parse()};$('#saveBtn').onclick=()=>dl(state.mode==='turning'?'turning.nc':'program.nc',code.value);$('#openBtn').onclick=()=>$('#fileInput').click();$('#fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{code.value=r.result;updateLines();state.autoFit=true;parse();$('#dirty').textContent='● Đã tải '+f.name};r.readAsText(f)};
+$('#controller').onchange=e=>{state.controller=e.target.value;state.autoFit=true;parse()};$('#runBtn').onclick=run;$('#pauseBtn').onclick=()=>{state.paused=!state.paused;$('#metricState').textContent=state.paused?'Tạm dừng':'Đang chạy'};$('#stopBtn').onclick=reset;$('#resetBtn').onclick=reset;$('#stepBtn').onclick=()=>{if(!state.result)parse();state.step=Math.min(state.step+1,state.result.segments.length);state.selectedLine=state.result.segments[state.step-1]?.line||null;$('#metricState').textContent='Bước';draw()};$('#millingBtn').onclick=()=>setMode('milling');$('#turningBtn').onclick=()=>setMode('turning');$('#fitBtn').onclick=()=>{state.autoFit=true;state.panX=0;state.panY=0;parse()};$('#newBtn').onclick=()=>{code.value='';updateLines();reset();state.autoFit=true;parse()};$('#saveBtn').onclick=()=>dl(state.mode==='turning'?'turning.nc':'program.nc',code.value);$('#openBtn').onclick=()=>$('#fileInput').click();$('#fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{code.value=r.result;updateLines();state.autoFit=true;parse();$('#dirty').textContent='● Đã tải '+f.name};r.readAsText(f)};
 let drag=false,lx=0,ly=0;canvas.addEventListener('pointerdown',e=>{if(!(e.button===1||e.button===2||e.shiftKey||e.ctrlKey))return;e.preventDefault();state.autoFit=false;drag=true;lx=e.clientX;ly=e.clientY;canvas.classList.add('panning')});window.addEventListener('pointerup',()=>{drag=false;canvas.classList.remove('panning')});window.addEventListener('pointermove',e=>{if(!drag)return;state.panX+=e.clientX-lx;state.panY+=e.clientY-ly;lx=e.clientX;ly=e.clientY;draw()});canvas.oncontextmenu=e=>e.preventDefault();canvas.addEventListener('dblclick',()=>{$('#fitBtn').click()});window.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key.toLowerCase()==='s'){e.preventDefault();$('#saveBtn').click()}if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();run()}if(e.key==='F5'){e.preventDefault();parse()}});new ResizeObserver(resize).observe($('.canvas-wrap'));updateLines();parse();resize();
 })();
