@@ -82,3 +82,34 @@ html,body{min-width:0;overflow:hidden}
   .bottom{display:none}
   .workspace{min-height:0}
 }
+/* FINAL UI OVERRIDE: compact menu-only header, fixed Code + 2D workspace */
+html,body{overflow:hidden}
+.app{min-width:0;width:100%;height:100dvh}
+.menubar{position:relative;height:42px;min-height:42px;padding:0 10px;gap:2px;z-index:20;background:#0b1016;border-bottom:1px solid var(--line)}
+.menu-btn{height:32px;padding:0 12px;color:#b8c4d1;border-radius:5px;font-size:12px}
+.menu-btn:hover,.menu-btn.active{background:#17212c;color:#fff}
+.menus{position:absolute;left:0;top:42px}
+.dropdown{display:none;position:absolute;min-width:180px;padding:5px;background:#101821;border:1px solid #2a3847;border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.dropdown.open{display:grid}
+.dropdown button{text-align:left;padding:8px 10px;border-radius:4px;color:#c7d2de}
+.dropdown button:hover{background:#182634;color:#fff}
+.legacy-controls{display:none!important}
+.workspace{position:relative;flex:1;min-height:0;height:calc(100dvh - 42px);grid-template-columns:37% 63%;gap:4px;padding:4px;background:#070b10}
+.editor-panel,.view-panel{height:100%;min-height:0}
+.panel-head{height:32px;min-height:32px}
+.editor-wrap{min-height:0}
+.editor-footer{height:22px;min-height:22px}
+.view-head{height:32px;min-height:32px;padding:0 9px}
+.view-head strong{font-size:12px;color:#e7edf5}
+.view-head small{display:none}
+.canvas-wrap{min-height:0}
+.view-footer{height:24px;min-height:24px}
+.coords{font-size:10px}
+@media(max-width:700px){
+  .menubar{height:38px;min-height:38px;padding:0 4px;overflow:visible}
+  .menu-btn{padding:0 8px;font-size:11px}
+  .menus{top:38px}
+  .workspace{height:calc(100dvh - 38px);grid-template-columns:38% 62%;padding:3px;gap:3px}
+  .panel-head,.view-head{height:30px;min-height:30px}
+  .editor-footer,.view-footer{height:20px;min-height:20px}
+}
